@@ -15,7 +15,7 @@ namespace FaceApi_PoC
     {
 
         // Replace the subscriptionKey string value with your valid subscription key.
-        const string _subscriptionKey = "*** Your Subscription Key ****";
+        const string _subscriptionKey = "**** Your Subscription Key ***";
 
         // Replace or verify the region.
         //
@@ -41,14 +41,27 @@ namespace FaceApi_PoC
         {
             _faceServiceClient = new FaceServiceClient(_subscriptionKey, "https://westcentralus.api.cognitive.microsoft.com/face/v1.0");
 
-            // Create a person group for employees
+            // Person group for employees
             string employeesGroupId = "employees";
 
             try
             {
                 await SetupFaceVerification(employeesGroupId);
 
-                await DetectAndVerifyEmployee(employeesGroupId, Guid.Parse("07fcac24-fb03-4fe5-826e-34fc52685cd8"));
+                await ListEmployeesInGroup(employeesGroupId);
+
+                Console.WriteLine("\nEnter the id of the person you want to validate: ");
+                string id = Console.ReadLine();
+
+                string defaultImgPath = @"C:\Dev\GitHub\Cognitive-Face-Windows\Data\PersonGroup\Family1-Mom\Family1-Mom1.jpg";
+                Console.WriteLine("Enter the full path to an image with the picture that you wish to use: ");
+                Console.WriteLine(@"  --> Default is: {0}", defaultImgPath);
+                string imgPath = Console.ReadLine();
+                if (String.IsNullOrEmpty(imgPath))
+                    imgPath = defaultImgPath;
+
+                // The Guid needs to be the MomId
+                await DetectAndVerifyEmployee(employeesGroupId, imgPath, Guid.Parse(id));
 
                 //DeleteEverything(employeesGroupId);
             }
@@ -62,15 +75,13 @@ namespace FaceApi_PoC
             Console.ReadLine();
         }
 
-        static async Task DetectAndVerifyEmployee(string personGroupId, Guid personId)
+        static async Task DetectAndVerifyEmployee(string personGroupId, string imgPath, Guid personId)
         {
-            string testImageFile = @"C:\Dev\GitHub\Cognitive-Face-Windows\Data\PersonGroup\Family1-Mom\Family1-Mom1.jpg";
-
             // This is the person we hope to find !
             var person = await _faceServiceClient.GetPersonAsync(personGroupId, personId);
             Console.WriteLine("...Trying to confirm that the photo submitted matches with {0}", person.Name);
 
-            using (Stream s = File.OpenRead(testImageFile))
+            using (Stream s = File.OpenRead(imgPath))
             {
                 var faces = await _faceServiceClient.DetectAsync(s);
                 var faceIds = faces.Select(face => face.FaceId).ToArray();
@@ -78,7 +89,18 @@ namespace FaceApi_PoC
                 // Here, I only care about the first face in the list of faces detected assuming there is only one.
                 var verifyResult = await _faceServiceClient.VerifyAsync(faceIds[0], personGroupId, personId);
 
-                Console.WriteLine("We believe the picture correspond to: {0} with confidence: {1}", person.Name, verifyResult.Confidence);
+                if (verifyResult.Confidence > 0.75)
+                {
+                    Console.WriteLine("We believe the picture correspond to: {0} with confidence: {1}", person.Name, verifyResult.Confidence);
+                }
+                else if (verifyResult.Confidence <= 0.75)
+                {
+                    Console.WriteLine("Humm, not too sure it's {0}, confidence is low: {1}", person.Name, verifyResult.Confidence);
+                }
+                else
+                {
+                    Console.WriteLine("No way, you're trying to fool us, this is definitely not {0}. We got a confidence of: {1}", person.Name, verifyResult.Confidence);
+                }
             }
         }
 
@@ -148,6 +170,16 @@ namespace FaceApi_PoC
 
                 // Since it's just a poc...
                 throw;
+            }
+        }
+
+        static async Task ListEmployeesInGroup(string personGroupId )
+        {
+            var employees = await _faceServiceClient.ListPersonsAsync(personGroupId);
+            Console.WriteLine("Listing everyone in the group Employees: ");
+            foreach(Person person in employees)
+            {
+                Console.WriteLine("   Person Name: {0}, Person Id: {1}", person.Name, person.PersonId);
             }
         }
 
