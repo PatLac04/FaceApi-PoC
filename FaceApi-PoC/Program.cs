@@ -15,7 +15,7 @@ namespace FaceApi_PoC
     {
 
         // Replace the subscriptionKey string value with your valid subscription key.
-        const string _subscriptionKey = "**** Your Subscription Key ***";
+        const string _subscriptionKey = "*** Your Key ***";
 
         // Replace or verify the region.
         //
@@ -43,32 +43,54 @@ namespace FaceApi_PoC
 
             // Person group for employees
             string employeesGroupId = "employees";
+            await SetupFaceVerification(employeesGroupId);
 
-            try
+            while (true)
             {
-                await SetupFaceVerification(employeesGroupId);
+                try
+                {
+                    await ListEmployeesInGroup(employeesGroupId);
 
-                await ListEmployeesInGroup(employeesGroupId);
+                    Console.WriteLine("\nEnter the id of the person you want to validate: ");
+                    string id = Console.ReadLine();
 
-                Console.WriteLine("\nEnter the id of the person you want to validate: ");
-                string id = Console.ReadLine();
+                    string defaultImgPath = @"C:\Dev\GitHub\Cognitive-Face-Windows\Data\PersonGroup\Family1-Mom\Family1-Mom1.jpg";
+                    Console.WriteLine("Enter the full path to an image with the picture that you wish to use: ");
+                    Console.WriteLine(@"  --> Default is: {0}", defaultImgPath);
+                    string imgPath = Console.ReadLine();
+                    if (String.IsNullOrEmpty(imgPath))
+                        imgPath = defaultImgPath;
 
-                string defaultImgPath = @"C:\Dev\GitHub\Cognitive-Face-Windows\Data\PersonGroup\Family1-Mom\Family1-Mom1.jpg";
-                Console.WriteLine("Enter the full path to an image with the picture that you wish to use: ");
-                Console.WriteLine(@"  --> Default is: {0}", defaultImgPath);
-                string imgPath = Console.ReadLine();
-                if (String.IsNullOrEmpty(imgPath))
-                    imgPath = defaultImgPath;
+                    // The Guid needs to be the MomId
+                    await DetectAndVerifyEmployee(employeesGroupId, imgPath, Guid.Parse(id));
 
-                // The Guid needs to be the MomId
-                await DetectAndVerifyEmployee(employeesGroupId, imgPath, Guid.Parse(id));
+                }
+                catch (Exception itsBad)
+                {
+                    Console.WriteLine("Something bad happened");
+                    Console.WriteLine(itsBad.Message);
+                }
 
-                //DeleteEverything(employeesGroupId);
+                Console.WriteLine("Press Q to Quit or any other key to try again...");
+                if (Console.ReadKey().Key == ConsoleKey.Q)
+                {
+                    return;
+                }
             }
-            catch (Exception itsBad)
+
+            Console.WriteLine("Would you like to remove the PersonGroup and everyone in it?");
+            Console.WriteLine("Press Y or N");
+            while (true)
             {
-                Console.WriteLine("Something bad happened");
-                Console.WriteLine(itsBad.Message);
+                if (Console.ReadKey().Key == ConsoleKey.Y)
+                {
+                    DeleteEverything(employeesGroupId);
+                    return;
+                }
+                else
+                {
+                    return;
+                }
             }
 
             Console.WriteLine("That's it, we're done !");
@@ -91,15 +113,15 @@ namespace FaceApi_PoC
 
                 if (verifyResult.Confidence > 0.75)
                 {
-                    Console.WriteLine("We believe the picture correspond to: {0} with confidence: {1}", person.Name, verifyResult.Confidence);
+                    Console.WriteLine("We believe the picture correspond to: {0} with confidence: {1}\n", person.Name, verifyResult.Confidence);
                 }
-                else if (verifyResult.Confidence <= 0.75)
+                else if (verifyResult.Confidence <= 0.75 && verifyResult.Confidence > 0.5)
                 {
-                    Console.WriteLine("Humm, not too sure it's {0}, confidence is low: {1}", person.Name, verifyResult.Confidence);
+                    Console.WriteLine("Humm, not too sure it's {0}, confidence is low: {1}\n", person.Name, verifyResult.Confidence);
                 }
                 else
                 {
-                    Console.WriteLine("No way, you're trying to fool us, this is definitely not {0}. We got a confidence of: {1}", person.Name, verifyResult.Confidence);
+                    Console.WriteLine("No way, you're trying to fool us, this is definitely not {0}. We got a confidence of: {1}\n", person.Name, verifyResult.Confidence);
                 }
             }
         }
@@ -173,11 +195,11 @@ namespace FaceApi_PoC
             }
         }
 
-        static async Task ListEmployeesInGroup(string personGroupId )
+        static async Task ListEmployeesInGroup(string personGroupId)
         {
             var employees = await _faceServiceClient.ListPersonsAsync(personGroupId);
             Console.WriteLine("Listing everyone in the group Employees: ");
-            foreach(Person person in employees)
+            foreach (Person person in employees)
             {
                 Console.WriteLine("   Person Name: {0}, Person Id: {1}", person.Name, person.PersonId);
             }
